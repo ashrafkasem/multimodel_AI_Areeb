@@ -108,8 +108,8 @@ async def main():
     except Exception as e:
         print(f"❌ Test failed with error: {e}")
         print("Make sure your model servers are running:")
-        print("- Qwen3 on http://62.169.159.144:8000")
-        print("- Qwen2.5-Coder on http://62.169.159.144:8001")
+        print("- Qwen3 on http://localhost:8000")
+        print("- Qwen2.5-Coder on http://localhost:8001")
 
 if __name__ == "__main__":
     asyncio.run(main()) 

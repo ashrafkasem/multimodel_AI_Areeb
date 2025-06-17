@@ -62,11 +62,11 @@ Edit [`qwen_config.py`](qwen_config.py) or set environment variables:
 ```bash
 # Orchestrator Model (Qwen3)
 export QWEN3_MODEL="Qwen2.5-72B-Instruct"
-export QWEN3_URL="http://62.169.159.144:8000/v1"
+export QWEN3_URL="http://localhost:8000/v1"
 
 # Code Generation Model (Qwen2.5-Coder)
 export CODE_MODEL_NAME="Qwen2.5-Coder-7B-Instruct"
-export CODE_MODEL_URL="http://62.169.159.144:8001/v1/chat/completions"
+export CODE_MODEL_URL="http://localhost:8001/v1/chat/completions"
 
 # API Server
 export API_PORT=8002
@@ -159,14 +159,14 @@ curl http://localhost:8002/health
 ```bash
 # Model Configuration
 QWEN3_MODEL=Qwen2.5-72B-Instruct
-QWEN3_URL=http://62.169.159.144:8000/v1
+QWEN3_URL=http://localhost:8000/v1
 QWEN3_API_KEY=EMPTY
 QWEN3_TEMPERATURE=0.7
 QWEN3_TOP_P=0.8
 QWEN3_MAX_TOKENS=8192
 
 CODE_MODEL_NAME=Qwen2.5-Coder-7B-Instruct
-CODE_MODEL_URL=http://62.169.159.144:8001/v1/chat/completions
+CODE_MODEL_URL=http://localhost:8001/v1/chat/completions
 CODE_MODEL_API_KEY=EMPTY
 CODE_MODEL_TIMEOUT=300
 

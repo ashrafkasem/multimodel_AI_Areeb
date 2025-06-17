@@ -101,8 +101,8 @@ check_dependencies() {
 check_model_servers() {
     print_status "Checking model servers..."
     
-    local qwen3_url="${QWEN3_URL:-http://62.169.159.144:8000/v1}"
-    local code_url="${CODE_MODEL_URL:-http://62.169.159.144:8001/v1/chat/completions}"
+    local qwen3_url="${QWEN3_URL:-http://localhost:8000/v1}"
+    local code_url="${CODE_MODEL_URL:-http://localhost:8001/v1/chat/completions}"
     
     local servers_ok=true
     

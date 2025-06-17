@@ -11,7 +11,7 @@ from typing import Dict, Any
 QWEN3_CONFIG = {
     # Main orchestrator model (Qwen3 or Qwen2.5-72B-Instruct)
     'model': os.getenv('QWEN3_MODEL', 'areebtechnology2025/Qwen3-30B-Areeb-Lora'),
-    'model_server': os.getenv('QWEN3_URL', 'http://62.169.159.144:8000/v1'),
+    'model_server': os.getenv('QWEN3_URL', 'http://localhost:8000/v1'),
     'api_key': os.getenv('QWEN3_API_KEY', 'EMPTY'),
     'generate_cfg': {
         'top_p': float(os.getenv('QWEN3_TOP_P', '0.8')),
@@ -25,7 +25,7 @@ QWEN3_CONFIG = {
 CODE_MODEL_CONFIG = {
     # Specialized code generation model (Qwen2.5-Coder)
     'model': os.getenv('CODE_MODEL_NAME', 'Qwen/Qwen2.5-Coder-32B-Instruct'),
-    'url': os.getenv('CODE_MODEL_URL', 'http://62.169.159.144:8001/v1/chat/completions'),
+    'url': os.getenv('CODE_MODEL_URL', 'http://localhost:8001/v1/chat/completions'),
     'api_key': os.getenv('CODE_MODEL_API_KEY', 'EMPTY'),
     'timeout': int(os.getenv('CODE_MODEL_TIMEOUT', '300')),  # 5 minutes
     'max_tokens': 4096,
