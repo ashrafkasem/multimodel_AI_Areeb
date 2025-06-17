@@ -7,6 +7,7 @@ Replaces the custom API server with the official Qwen-Agent framework
 import os
 import json
 import logging
+import sys
 from contextlib import asynccontextmanager
 from typing import Dict, Any, Optional
 from fastapi import FastAPI, HTTPException, Request
@@ -15,8 +16,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from qwen_agent.agents import Assistant
 from qwen_agent.tools.base import BaseTool, register_tool
-from qwen_agent.gui import WebUI
 import json5
+
+# Conditional GUI import
+try:
+    from qwen_agent.gui import WebUI
+    GUI_AVAILABLE = True
+except ImportError:
+    GUI_AVAILABLE = False
+    WebUI = None
 import httpx
 import asyncio
 
@@ -565,7 +573,7 @@ async def root():
             "chat": "/v1/chat/completions (uses Qwen3 orchestrator + tools)",
             "completions": "/v1/completions (direct to Qwen2.5-Coder for speed)",
             "health": "/health",
-            "gui": "/gui"
+            "gui": "/gui" if GUI_AVAILABLE else "/gui (not available - install qwen-agent[gui])"
         },
         "models": {
             "orchestrator": QWEN3_CONFIG['model'],
@@ -579,6 +587,14 @@ async def root():
 
 def run_gui():
     """Run the Gradio GUI interface."""
+    if not GUI_AVAILABLE:
+        print("❌ GUI not available!")
+        print("Please install GUI dependencies with:")
+        print("pip install 'qwen-agent[gui]'")
+        print("or")
+        print("pip install qwen-agent gradio modelscope-studio")
+        sys.exit(1)
+    
     global agent
     if agent is None:
         agent = create_agent()
