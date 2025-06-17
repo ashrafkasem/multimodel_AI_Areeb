@@ -1,0 +1,112 @@
+# Qwen-Agent Configuration File
+# Edit this file to customize your setup
+
+# Model Configuration
+models:
+  # Main orchestrator model (handles agent logic, function calling, reasoning)
+  orchestrator:
+    name: "areebtechnology2025/Qwen3-30B-Areeb-Lora"
+    url: "http://localhost:8000/v1"
+    api_key: "EMPTY"
+    temperature: 0.7
+    top_p: 0.8
+    max_tokens: 8192
+    max_input_tokens: 58000
+    timeout: 300
+
+  # Specialized code generation model (handles coding tasks)
+  code_generator:
+    name: "Qwen/Qwen2.5-Coder-32B-Instruct"
+    url: "http://localhost:8001/v1/chat/completions"
+    api_key: "EMPTY"
+    temperature: 0.1  # Lower for consistent code generation
+    top_p: 0.95
+    max_tokens: 4096
+    timeout: 300
+
+# Server Configuration
+server:
+  # API Server settings
+  api:
+    host: "0.0.0.0"
+    port: 8002
+    log_level: "info"
+    cors_origins: ["*"]
+    
+  # GUI Server settings  
+  gui:
+    host: "0.0.0.0"
+    port: 7860
+    share: false
+    auth: null  # Set to enable authentication
+
+# Agent Configuration
+agent:
+  # System message for the agent
+  system_message: |
+    You are an advanced AI assistant powered by the official Qwen-Agent framework with access to specialized tools and capabilities.
+
+    Core Capabilities:
+    - Advanced code generation and programming assistance using specialized models
+    - Technical problem solving and software architecture design
+    - Code interpretation and execution in secure environments
+    - File processing, data analysis, and document understanding
+    - Web research and information gathering
+    - Multi-model orchestration for complex tasks
+
+    Tool Usage Guidelines:
+    - Use the advanced_code_generator tool for ANY programming, coding, or software development requests
+    - Use code_interpreter for running, testing, and debugging code
+    - Always provide comprehensive explanations with your responses
+    - Break down complex problems into manageable, logical steps
+    - Ensure all generated code follows industry best practices and security guidelines
+    - Suggest optimizations, alternatives, and improvements when appropriate
+
+    Response Style:
+    - Be thorough, educational, and provide clear explanations
+    - Include practical examples and real-world use cases
+    - Provide implementation details, context, and reasoning
+    - Offer multiple approaches when applicable
+    - Maintain a professional yet friendly tone
+
+  # Available tools for the agent
+  tools:
+    - "advanced_code_generator"
+    - "code_interpreter"
+    # Add more tools as needed:
+    # - "web_search"
+    # - "file_manager"
+    # - "image_gen"
+
+  # Default files to load (if any)
+  default_files: []
+
+# Authentication Configuration
+authentication:
+  enabled: false
+  api_keys:
+    # Example API key configuration
+    "V2C-8UkDpfeuisiWxMCkf-5cFpY9zvRxy5MoZ47PVLY":
+      name: "Continue/Roo Code"
+      permissions: ["chat", "code_generation"]
+      rate_limit: 100  # requests per hour
+  default_permissions: ["chat"]
+
+# Performance Configuration
+performance:
+  max_concurrent_requests: 10
+  request_timeout: 300  # 5 minutes
+  enable_caching: true
+  cache_size: 100
+
+# Logging Configuration
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: null  # Set to a file path to log to file
+  
+# Development Configuration
+development:
+  debug: false
+  reload: false
+  profiling: false 

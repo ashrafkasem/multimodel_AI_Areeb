@@ -27,10 +27,78 @@ logger = logging.getLogger(__name__)
 logging.getLogger("asyncio").setLevel(logging.ERROR)
 
 # Import configuration
-from qwen_config import (
-    QWEN3_CONFIG, CODE_MODEL_CONFIG, API_CONFIG, GUI_CONFIG, 
-    AGENT_CONFIG, AUTH_CONFIG, LOGGING_CONFIG, validate_config
-)
+import yaml
+import os
+from pathlib import Path
+
+# Load configuration from YAML file
+def load_config():
+    """Load configuration from config.yaml file."""
+    config_path = Path(__file__).parent / "config.yaml"
+    
+    if not config_path.exists():
+        raise FileNotFoundError(f"Configuration file not found: {config_path}")
+    
+    with open(config_path, 'r') as f:
+        config = yaml.safe_load(f)
+    
+    # Convert to the expected format
+    qwen3_config = {
+        'model': config['models']['orchestrator']['name'],
+        'model_server': config['models']['orchestrator']['url'],
+        'api_key': config['models']['orchestrator']['api_key'],
+        'generate_cfg': {
+            'top_p': config['models']['orchestrator']['top_p'],
+            'temperature': config['models']['orchestrator']['temperature'],
+            'max_tokens': config['models']['orchestrator']['max_tokens'],
+            'max_input_tokens': config['models']['orchestrator']['max_input_tokens'],
+            'fncall_prompt_type': 'nous',
+        }
+    }
+    
+    code_model_config = {
+        'model': config['models']['code_generator']['name'],
+        'url': config['models']['code_generator']['url'],
+        'api_key': config['models']['code_generator']['api_key'],
+        'timeout': config['models']['code_generator']['timeout'],
+        'max_tokens': config['models']['code_generator']['max_tokens'],
+        'temperature': config['models']['code_generator']['temperature'],
+        'top_p': config['models']['code_generator']['top_p']
+    }
+    
+    api_config = {
+        'host': config['server']['api']['host'],
+        'port': config['server']['api']['port'],
+        'log_level': config['server']['api']['log_level'],
+        'cors_origins': config['server']['api']['cors_origins'],
+    }
+    
+    gui_config = {
+        'host': config['server']['gui']['host'],
+        'port': config['server']['gui']['port'],
+        'share': config['server']['gui']['share'],
+        'auth': config['server']['gui']['auth']
+    }
+    
+    agent_config = {
+        'system_message': config['agent']['system_message'],
+        'available_tools': config['agent']['tools'],
+        'default_files': config['agent']['default_files']
+    }
+    
+    return qwen3_config, code_model_config, api_config, gui_config, agent_config
+
+# Load configuration
+try:
+    QWEN3_CONFIG, CODE_MODEL_CONFIG, API_CONFIG, GUI_CONFIG, AGENT_CONFIG = load_config()
+    logger.info("Configuration loaded from config.yaml")
+except Exception as e:
+    logger.error(f"Failed to load configuration: {e}")
+    logger.info("Falling back to qwen_config.py")
+    from qwen_config import (
+        QWEN3_CONFIG, CODE_MODEL_CONFIG, API_CONFIG, GUI_CONFIG, 
+        AGENT_CONFIG, AUTH_CONFIG, LOGGING_CONFIG, validate_config
+    )
 
 # Custom Code Generator Tool using your specialized model
 @register_tool('advanced_code_generator')
