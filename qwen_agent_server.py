@@ -7,6 +7,7 @@ Replaces the custom API server with the official Qwen-Agent framework
 import os
 import json
 import logging
+from contextlib import asynccontextmanager
 from typing import Dict, Any, Optional
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse, JSONResponse
@@ -92,6 +93,32 @@ def load_config():
 try:
     QWEN3_CONFIG, CODE_MODEL_CONFIG, API_CONFIG, GUI_CONFIG, AGENT_CONFIG = load_config()
     logger.info("Configuration loaded from config.yaml")
+    
+    # Define validate_config for YAML configuration
+    def validate_config():
+        """Validate the YAML configuration settings."""
+        errors = []
+        
+        # Check required URLs
+        if not QWEN3_CONFIG.get('model_server'):
+            errors.append("Orchestrator model_server URL is required")
+        
+        if not CODE_MODEL_CONFIG.get('url'):
+            errors.append("Code generator URL is required")
+        
+        # Check port availability
+        api_port = API_CONFIG.get('port', 8002)
+        gui_port = GUI_CONFIG.get('port', 7860)
+        
+        if not (1024 <= api_port <= 65535):
+            errors.append(f"API port must be between 1024 and 65535, got {api_port}")
+        
+        if not (1024 <= gui_port <= 65535):
+            errors.append(f"GUI port must be between 1024 and 65535, got {gui_port}")
+        
+        if errors:
+            raise ValueError(f"Configuration errors: {'; '.join(errors)}")
+            
 except Exception as e:
     logger.error(f"Failed to load configuration: {e}")
     logger.info("Falling back to qwen_config.py")
@@ -213,8 +240,25 @@ def create_agent():
     
     return bot
 
+# Global agent instance
+agent = None
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage application lifespan events."""
+    # Startup
+    global agent
+    logger.info("Initializing Qwen-Agent...")
+    agent = create_agent()
+    logger.info("Qwen-Agent initialized successfully!")
+    
+    yield
+    
+    # Shutdown (if needed)
+    logger.info("Shutting down Qwen-Agent...")
+
 # FastAPI app for API compatibility
-app = FastAPI(title="Qwen-Agent API Server")
+app = FastAPI(title="Qwen-Agent API Server", lifespan=lifespan)
 
 # Add CORS middleware
 app.add_middleware(
@@ -247,16 +291,7 @@ class CompletionRequest(BaseModel):
     stop: Optional[list[str]] = Field(None, description="Stop sequences")
     top_p: Optional[float] = Field(1.0, description="Top-p sampling parameter")
 
-# Global agent instance
-agent = None
 
-@app.on_event("startup")
-async def startup_event():
-    """Initialize the agent on startup."""
-    global agent
-    logger.info("Initializing Qwen-Agent...")
-    agent = create_agent()
-    logger.info("Qwen-Agent initialized successfully!")
 
 @app.post("/v1/chat/completions")
 async def chat_completions(request: ChatCompletionRequest, http_request: Request):
