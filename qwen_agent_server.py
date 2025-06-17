@@ -283,6 +283,15 @@ async def chat_completions(request: ChatCompletionRequest, http_request: Request
         logger.error(f"Error in chat completion: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+# Define FIM tokens globally for reuse
+FIM_TOKENS = [
+    '<fim_prefix>', '</fim_prefix>',
+    '<fim_middle>', '</fim_middle>', 
+    '<fim_suffix>', '</fim_suffix>',
+    '<|fim_prefix|>', '<|fim_suffix|>', '<|fim_middle|>',
+    '<PRE>', '</PRE>', '<SUF>', '</SUF>', '<MID>', '</MID>'
+]
+
 @app.post("/v1/completions")
 async def completions(request: CompletionRequest, http_request: Request):
     """Fast code completions - calls Qwen2.5-Coder directly for speed."""
@@ -296,19 +305,33 @@ async def completions(request: CompletionRequest, http_request: Request):
         
         logger.info(f"Processing FAST completion request (direct to coder): {request.prompt[:50]}...")
         
+        # Handle FIM (Fill-in-Middle) tokens and clean the prompt
+        clean_prompt = request.prompt
+        
+        # Remove or replace common FIM tokens
+        for token in FIM_TOKENS:
+            clean_prompt = clean_prompt.replace(token, '')
+        
+        # Clean up extra whitespace
+        clean_prompt = clean_prompt.strip()
+        
+        # If prompt is empty after cleaning, provide a minimal context
+        if not clean_prompt:
+            clean_prompt = "# Complete the code"
+        
         # Prepare request for code model directly (no orchestrator overhead)
         # Use a very specific system prompt for pure code completion
         payload = {
             'model': CODE_MODEL_CONFIG['model'],
             'messages': [
-                {'role': 'system', 'content': 'Complete the code. Return only the code continuation without any explanations, comments, or markdown formatting.'},
-                {'role': 'user', 'content': request.prompt}
+                {'role': 'system', 'content': 'You are a code completion assistant. Complete the code naturally without any special tokens, explanations, or markdown formatting. Only return the code continuation.'},
+                {'role': 'user', 'content': clean_prompt}
             ],
             'temperature': request.temperature,
             'max_tokens': request.max_tokens,
             'top_p': request.top_p,
             'stream': request.stream,
-            'stop': request.stop or ['\n\n', '```']
+            'stop': request.stop or ['\n\n', '```', '<fim_', '</fim_', '<|fim_', '<PRE>', '<SUF>', '<MID>']
         }
         
         if request.stop:
@@ -340,19 +363,25 @@ async def completions(request: CompletionRequest, http_request: Request):
                                         if 'choices' in chunk_data:
                                             for choice in chunk_data['choices']:
                                                 if 'delta' in choice and 'content' in choice['delta']:
-                                                    completion_chunk = {
-                                                        "id": f"cmpl-{os.urandom(12).hex()}",
-                                                        "object": "text_completion",
-                                                        "created": int(asyncio.get_event_loop().time()),
-                                                        "model": request.model,
-                                                        "choices": [{
-                                                            "text": choice['delta']['content'],
-                                                            "index": 0,
-                                                            "logprobs": None,
-                                                            "finish_reason": choice.get('finish_reason')
-                                                        }]
-                                                    }
-                                                    yield f"data: {json.dumps(completion_chunk)}\n\n"
+                                                    content = choice['delta']['content']
+                                                    # Clean FIM tokens from response
+                                                    for token in FIM_TOKENS:
+                                                        content = content.replace(token, '')
+                                                    
+                                                    if content:  # Only send non-empty content
+                                                        completion_chunk = {
+                                                            "id": f"cmpl-{os.urandom(12).hex()}",
+                                                            "object": "text_completion",
+                                                            "created": int(asyncio.get_event_loop().time()),
+                                                            "model": request.model,
+                                                            "choices": [{
+                                                                "text": content,
+                                                                "index": 0,
+                                                                "logprobs": None,
+                                                                "finish_reason": choice.get('finish_reason')
+                                                            }]
+                                                        }
+                                                        yield f"data: {json.dumps(completion_chunk)}\n\n"
                                     except json.JSONDecodeError:
                                         continue
                                         
@@ -384,6 +413,9 @@ async def completions(request: CompletionRequest, http_request: Request):
                 generated_text = ""
                 if 'choices' in result and len(result['choices']) > 0:
                     generated_text = result['choices'][0]['message']['content']
+                    # Clean FIM tokens from response
+                    for token in FIM_TOKENS:
+                        generated_text = generated_text.replace(token, '')
                 
                 return {
                     "id": f"cmpl-{os.urandom(12).hex()}",
