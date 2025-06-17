@@ -74,7 +74,7 @@ python3 -m pip install fastapi uvicorn
 
 # Install utility dependencies
 print_status "Installing utility dependencies..."
-python3 -m pip install httpx json5 pydantic requests pyyaml
+python3 -m pip install httpx json5 pydantic requests pyyaml tabulate
 
 # Install optional but useful dependencies
 print_status "Installing additional useful packages..."

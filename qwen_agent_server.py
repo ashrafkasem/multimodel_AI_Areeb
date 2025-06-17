@@ -8,12 +8,14 @@ import os
 import json
 import logging
 import sys
+import time
 from contextlib import asynccontextmanager
 from typing import Dict, Any, Optional
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Depends, Header
 from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from auth_system import auth_system, APIKey
 from qwen_agent.agents import Assistant
 from qwen_agent.tools.base import BaseTool, register_tool
 import json5
@@ -95,11 +97,17 @@ def load_config():
         'default_files': config['agent']['default_files']
     }
     
-    return qwen3_config, code_model_config, api_config, gui_config, agent_config
+    auth_config = {
+        'enabled': config['authentication']['enabled'],
+        'api_keys': config['authentication']['api_keys'],
+        'default_permissions': config['authentication']['default_permissions']
+    }
+    
+    return qwen3_config, code_model_config, api_config, gui_config, agent_config, auth_config
 
 # Load configuration
 try:
-    QWEN3_CONFIG, CODE_MODEL_CONFIG, API_CONFIG, GUI_CONFIG, AGENT_CONFIG = load_config()
+    QWEN3_CONFIG, CODE_MODEL_CONFIG, API_CONFIG, GUI_CONFIG, AGENT_CONFIG, AUTH_CONFIG = load_config()
     logger.info("Configuration loaded from config.yaml")
     
     # Define validate_config for YAML configuration
@@ -251,6 +259,56 @@ def create_agent():
 # Global agent instance
 agent = None
 
+# Authentication dependency
+async def authenticate_request(request: Request, authorization: str = Header(None)) -> Optional[APIKey]:
+    """Authenticate API requests using API keys."""
+    # Skip authentication if disabled
+    if not AUTH_CONFIG.get('enabled', False):
+        return None
+    
+    # Extract API key from Authorization header
+    api_key = None
+    if authorization:
+        if authorization.startswith("Bearer "):
+            api_key = authorization[7:]
+        else:
+            api_key = authorization
+    
+    if not api_key:
+        raise HTTPException(
+            status_code=401,
+            detail="API key required. Include 'Authorization: Bearer YOUR_API_KEY' header."
+        )
+    
+    # Validate API key
+    api_key_info = auth_system.validate_api_key(api_key)
+    if not api_key_info:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid API key."
+        )
+    
+    # Check rate limits
+    allowed, rate_limit_info = auth_system.check_rate_limit(api_key_info.key_id, api_key_info)
+    if not allowed:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Rate limit exceeded. Hourly: {rate_limit_info['hourly_usage']}/{rate_limit_info['hourly_limit']}, Daily: {rate_limit_info['daily_usage']}/{rate_limit_info['daily_limit']}",
+            headers={
+                "X-RateLimit-Limit-Hour": str(rate_limit_info['hourly_limit']),
+                "X-RateLimit-Remaining-Hour": str(rate_limit_info['hourly_remaining']),
+                "X-RateLimit-Reset-Hour": rate_limit_info['reset_hour'],
+                "X-RateLimit-Limit-Day": str(rate_limit_info['daily_limit']),
+                "X-RateLimit-Remaining-Day": str(rate_limit_info['daily_remaining']),
+                "X-RateLimit-Reset-Day": rate_limit_info['reset_day']
+            }
+        )
+    
+    # Increment rate limit counter
+    auth_system.increment_rate_limit(api_key_info.key_id)
+    
+    return api_key_info
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application lifespan events."""
@@ -302,19 +360,20 @@ class CompletionRequest(BaseModel):
 
 
 @app.post("/v1/chat/completions")
-async def chat_completions(request: ChatCompletionRequest, http_request: Request):
+async def chat_completions(
+    request: ChatCompletionRequest, 
+    http_request: Request,
+    api_key_info: Optional[APIKey] = Depends(authenticate_request)
+):
     """OpenAI-compatible chat completions endpoint."""
     global agent
     
     if agent is None:
         raise HTTPException(status_code=503, detail="Agent not initialized")
     
+    start_time = time.time()
+    
     try:
-        # Extract API key from header if needed
-        auth_header = http_request.headers.get("authorization", "")
-        if auth_header.startswith("Bearer "):
-            api_key = auth_header[7:]
-            # Add API key validation here if needed
         
         # Convert request messages to agent format
         messages = []
@@ -375,7 +434,7 @@ async def chat_completions(request: ChatCompletionRequest, http_request: Request
                 if isinstance(msg, dict) and msg.get('role') == 'assistant':
                     assistant_response = msg.get('content', '')
             
-            return {
+            response_data = {
                 "id": f"chatcmpl-{os.urandom(12).hex()}",
                 "object": "chat.completion",
                 "created": int(asyncio.get_event_loop().time()),
@@ -390,7 +449,46 @@ async def chat_completions(request: ChatCompletionRequest, http_request: Request
                 }]
             }
             
+            # Log successful request
+            if api_key_info:
+                processing_time = time.time() - start_time
+                tokens_used = len(assistant_response.split()) + sum(len(msg.content.split()) for msg in request.messages)
+                
+                auth_system.log_request(
+                    api_key_id=api_key_info.key_id,
+                    endpoint="/v1/chat/completions",
+                    method="POST",
+                    request_data={"messages": [{"role": msg.role, "content": msg.content[:100] + "..." if len(msg.content) > 100 else msg.content} for msg in request.messages]},
+                    response_data={"content_length": len(assistant_response), "choices_count": len(response_data["choices"])},
+                    status_code=200,
+                    processing_time=processing_time,
+                    tokens_used=tokens_used,
+                    model_used=QWEN3_CONFIG['model'],
+                    ip_address=http_request.client.host if http_request.client else "",
+                    user_agent=http_request.headers.get("user-agent", ""),
+                    cost=tokens_used * 0.0001  # Example cost calculation
+                )
+            
+            return response_data
+            
     except Exception as e:
+        # Log failed request
+        if api_key_info:
+            processing_time = time.time() - start_time
+            auth_system.log_request(
+                api_key_id=api_key_info.key_id,
+                endpoint="/v1/chat/completions",
+                method="POST",
+                request_data={"messages": [{"role": msg.role, "content": msg.content[:100] + "..." if len(msg.content) > 100 else msg.content} for msg in request.messages]},
+                response_data={"error": str(e)},
+                status_code=500,
+                processing_time=processing_time,
+                tokens_used=0,
+                model_used=QWEN3_CONFIG['model'],
+                ip_address=http_request.client.host if http_request.client else "",
+                user_agent=http_request.headers.get("user-agent", "")
+            )
+        
         logger.error(f"Error in chat completion: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -404,15 +502,16 @@ FIM_TOKENS = [
 ]
 
 @app.post("/v1/completions")
-async def completions(request: CompletionRequest, http_request: Request):
+async def completions(
+    request: CompletionRequest, 
+    http_request: Request,
+    api_key_info: Optional[APIKey] = Depends(authenticate_request)
+):
     """Fast code completions - calls Qwen2.5-Coder directly for speed."""
     
+    start_time = time.time()
+    
     try:
-        # Extract API key from header if needed
-        auth_header = http_request.headers.get("authorization", "")
-        if auth_header.startswith("Bearer "):
-            api_key = auth_header[7:]
-            # Add API key validation here if needed
         
         logger.info(f"Processing FAST completion request (direct to coder): {request.prompt[:50]}...")
         
@@ -528,7 +627,7 @@ async def completions(request: CompletionRequest, http_request: Request):
                     for token in FIM_TOKENS:
                         generated_text = generated_text.replace(token, '')
                 
-                return {
+                response_data = {
                     "id": f"cmpl-{os.urandom(12).hex()}",
                     "object": "text_completion",
                     "created": int(asyncio.get_event_loop().time()),
@@ -545,11 +644,67 @@ async def completions(request: CompletionRequest, http_request: Request):
                         "total_tokens": len(request.prompt.split()) + len(generated_text.split())
                     }
                 }
+                
+                # Log successful request
+                if api_key_info:
+                    processing_time = time.time() - start_time
+                    tokens_used = len(request.prompt.split()) + len(generated_text.split())
+                    
+                    auth_system.log_request(
+                        api_key_id=api_key_info.key_id,
+                        endpoint="/v1/completions",
+                        method="POST",
+                        request_data={"prompt": request.prompt[:100] + "..." if len(request.prompt) > 100 else request.prompt},
+                        response_data={"text_length": len(generated_text), "choices_count": len(response_data["choices"])},
+                        status_code=200,
+                        processing_time=processing_time,
+                        tokens_used=tokens_used,
+                        model_used=CODE_MODEL_CONFIG['model'],
+                        ip_address=http_request.client.host if http_request.client else "",
+                        user_agent=http_request.headers.get("user-agent", ""),
+                        cost=tokens_used * 0.00005  # Lower cost for direct code completion
+                    )
+                
+                return response_data
             
     except httpx.RequestError as e:
+        # Log failed request
+        if api_key_info:
+            processing_time = time.time() - start_time
+            auth_system.log_request(
+                api_key_id=api_key_info.key_id,
+                endpoint="/v1/completions",
+                method="POST",
+                request_data={"prompt": request.prompt[:100] + "..." if len(request.prompt) > 100 else request.prompt},
+                response_data={"error": str(e)},
+                status_code=503,
+                processing_time=processing_time,
+                tokens_used=0,
+                model_used=CODE_MODEL_CONFIG['model'],
+                ip_address=http_request.client.host if http_request.client else "",
+                user_agent=http_request.headers.get("user-agent", "")
+            )
+        
         logger.error(f"Error connecting to code model: {e}")
         raise HTTPException(status_code=503, detail=f"Code model unavailable: {str(e)}")
     except Exception as e:
+        # Log failed request
+        if api_key_info:
+            processing_time = time.time() - start_time
+            auth_system.log_request(
+                api_key_id=api_key_info.key_id,
+                endpoint="/v1/completions",
+                method="POST",
+                request_data={"prompt": request.prompt[:100] + "..." if len(request.prompt) > 100 else request.prompt},
+                response_data={"error": str(e)},
+                status_code=500,
+                processing_time=processing_time,
+                tokens_used=0,
+                model_used=CODE_MODEL_CONFIG['model'],
+                ip_address=http_request.client.host if http_request.client else "",
+                user_agent=http_request.headers.get("user-agent", "")
+            )
+        
         logger.error(f"Error in completion: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -569,10 +724,12 @@ async def root():
         "name": "Official Qwen-Agent API Server",
         "version": "1.0.0",
         "framework": "qwen-agent",
+        "authentication": AUTH_CONFIG.get('enabled', False),
         "endpoints": {
             "chat": "/v1/chat/completions (uses Qwen3 orchestrator + tools)",
             "completions": "/v1/completions (direct to Qwen2.5-Coder for speed)",
             "health": "/health",
+            "admin": "/admin/* (admin endpoints for user management)",
             "gui": "/gui" if GUI_AVAILABLE else "/gui (not available - install qwen-agent[gui])"
         },
         "models": {
@@ -584,6 +741,100 @@ async def root():
             "completions": "Direct to Qwen2.5-Coder for fast code completion"
         }
     }
+
+# Admin endpoints (protected)
+@app.get("/admin/users")
+async def admin_list_users():
+    """List all users and their statistics."""
+    try:
+        users = auth_system.get_all_users_statistics()
+        return {"users": users}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/admin/users/{key_id}/stats")
+async def admin_user_stats(key_id: str, days: int = 30):
+    """Get detailed statistics for a specific user."""
+    try:
+        stats = auth_system.get_user_statistics(key_id, days=days)
+        if not stats:
+            raise HTTPException(status_code=404, detail="User not found")
+        return stats
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/admin/system/stats")
+async def admin_system_stats():
+    """Get system-wide statistics."""
+    try:
+        users = auth_system.get_all_users_statistics()
+        
+        total_users = len(users)
+        active_users = len([u for u in users if u['is_active']])
+        total_requests = sum(u.get('recent_stats', {}).get('total_requests', 0) for u in users)
+        total_tokens = sum(u.get('recent_stats', {}).get('total_tokens', 0) for u in users)
+        total_cost = sum(u.get('recent_stats', {}).get('total_cost', 0) for u in users)
+        
+        return {
+            "system_stats": {
+                "total_users": total_users,
+                "active_users": active_users,
+                "total_requests_7d": total_requests,
+                "total_tokens_7d": total_tokens,
+                "total_cost_7d": total_cost
+            },
+            "top_users": sorted(users, key=lambda u: u.get('recent_stats', {}).get('total_requests', 0), reverse=True)[:10]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+class CreateAPIKeyRequest(BaseModel):
+    name: str = Field(..., description="User name")
+    email: str = Field(..., description="User email")
+    permissions: List[str] = Field(["chat", "code_generation"], description="User permissions")
+    hourly_limit: int = Field(100, description="Hourly rate limit")
+    daily_limit: int = Field(1000, description="Daily rate limit")
+    metadata: Dict[str, Any] = Field({}, description="Additional metadata")
+
+@app.post("/admin/users/create")
+async def admin_create_user(request: CreateAPIKeyRequest):
+    """Create a new API key."""
+    try:
+        api_key, key_id = auth_system.generate_api_key(
+            name=request.name,
+            user_email=request.email,
+            permissions=request.permissions,
+            rate_limit_per_hour=request.hourly_limit,
+            rate_limit_per_day=request.daily_limit,
+            metadata=request.metadata
+        )
+        
+        return {
+            "success": True,
+            "key_id": key_id,
+            "api_key": api_key,
+            "user": {
+                "name": request.name,
+                "email": request.email,
+                "permissions": request.permissions,
+                "rate_limits": {
+                    "hourly": request.hourly_limit,
+                    "daily": request.daily_limit
+                }
+            },
+            "warning": "Save this API key securely - it won't be shown again!"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/admin/users/{key_id}/deactivate")
+async def admin_deactivate_user(key_id: str):
+    """Deactivate a user's API key."""
+    try:
+        auth_system.deactivate_api_key(key_id)
+        return {"success": True, "message": f"User {key_id} has been deactivated"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 def run_gui():
     """Run the Gradio GUI interface."""

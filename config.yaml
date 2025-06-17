@@ -83,7 +83,7 @@ agent:
 
 # Authentication Configuration
 authentication:
-  enabled: false
+  enabled: true  # Enable authentication
   api_keys:
     # Example API key configuration
     "V2C-8UkDpfeuisiWxMCkf-5cFpY9zvRxy5MoZ47PVLY":
