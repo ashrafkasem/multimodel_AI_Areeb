@@ -838,101 +838,229 @@ async def admin_deactivate_user(key_id: str):
 
 def run_gui():
     """Run the Gradio GUI interface with API key authentication."""
-    if not GUI_AVAILABLE:
-        print("❌ GUI not available!")
+    try:
+        import gradio as gr
+    except ImportError:
+        print("❌ Gradio not available!")
         print("Please install GUI dependencies with:")
-        print("pip install 'qwen-agent[gui]'")
-        print("or")
-        print("pip install qwen-agent gradio modelscope-studio")
+        print("pip install gradio")
         sys.exit(1)
     
     global agent
     if agent is None:
         agent = create_agent()
     
-    # Configure authentication based on config
-    auth_config = None
-    if GUI_CONFIG.get('auth'):
-        if isinstance(GUI_CONFIG['auth'], list) and len(GUI_CONFIG['auth']) == 2:
-            # Simple username/password authentication
-            auth_config = tuple(GUI_CONFIG['auth'])
-        elif GUI_CONFIG['auth'] == "api_key":
-            # API key authentication with usage tracking
-            def validate_gui_api_key(username, password):
-                """Validate API key for GUI access and enable usage tracking."""
-                # In Gradio auth, we use the password field for the API key
-                api_key = password
-                
-                if not AUTH_CONFIG.get('enabled', False):
-                    return True  # No auth required if disabled
-                
-                # Validate the API key
-                api_key_info = auth_system.validate_api_key(api_key)
-                if api_key_info and api_key_info.is_active:
-                    # Check permissions for GUI access
-                    if 'chat' in api_key_info.permissions:
-                        # Check rate limits
-                        allowed, rate_limit_info = auth_system.check_rate_limit(api_key_info.key_id, api_key_info)
-                        if allowed:
-                            # Store API key info in session for usage tracking
-                            # Note: This is a simplified approach - in production you might want more sophisticated session management
-                            return True
-                        else:
-                            print(f"Rate limit exceeded for user {api_key_info.name}")
-                            return False
-                    else:
-                        print(f"User {api_key_info.name} lacks GUI permissions")
-                        return False
-                else:
-                    print("Invalid or inactive API key")
-                    return False
-            
-            # Set up API key authentication
-            auth_config = validate_gui_api_key
+    # Store current API key info for session tracking
+    current_api_key_info = {}
     
-    # Create a wrapper for the WebUI that tracks usage
-    if GUI_CONFIG.get('auth') == "api_key" and AUTH_CONFIG.get('enabled', False):
-        # Create a custom WebUI class that tracks API usage
-        class TrackedWebUI(WebUI):
-            def __init__(self, agent):
-                super().__init__(agent)
-                self.current_api_key_info = None
-            
-            def _track_gui_usage(self, api_key, query, response, processing_time):
-                """Track GUI usage in the authentication system."""
-                try:
-                    api_key_info = auth_system.validate_api_key(api_key)
-                    if api_key_info:
-                        # Increment rate limit counters
-                        auth_system.increment_rate_limit(api_key_info.key_id)
-                        
-                        # Log the request
-                        auth_system.log_request(
-                            api_key_id=api_key_info.key_id,
-                            endpoint="/gui/chat",
-                            method="POST",
-                            request_data={"query": query[:100] + "..." if len(query) > 100 else query},
-                            response_data={"response": response[:100] + "..." if len(response) > 100 else response},
-                            status_code=200,
-                            processing_time=processing_time,
-                            tokens_used=len(response.split()),  # Rough token estimate
-                            model_used="qwen-agent-gui",
-                            ip_address="gui-interface",
-                            user_agent="qwen-agent-gui"
-                        )
-                except Exception as e:
-                    logger.error(f"Error tracking GUI usage: {e}")
+    def validate_api_key_and_chat(api_key, message, history):
+        """Validate API key and process chat message."""
+        import time
+        start_time = time.time()
         
-        ui = TrackedWebUI(agent)
-    else:
-        ui = WebUI(agent)
+        if not api_key or not api_key.strip():
+            return history, "Please enter your API key first."
+        
+        # Validate the API key
+        api_key_info = auth_system.validate_api_key(api_key.strip())
+        if not api_key_info or not api_key_info.is_active:
+            return history, "Invalid or inactive API key."
+        
+        # Check permissions
+        if 'chat' not in api_key_info.permissions:
+            return history, f"Access denied. User {api_key_info.name} lacks GUI permissions."
+        
+        # Check rate limits
+        allowed, rate_limit_info = auth_system.check_rate_limit(api_key_info.key_id, api_key_info)
+        if not allowed:
+            return history, f"Rate limit exceeded. Hourly: {rate_limit_info['hourly_usage']}/{rate_limit_info['hourly_limit']}, Daily: {rate_limit_info['daily_usage']}/{rate_limit_info['daily_limit']}"
+        
+        # Store API key info for this session
+        current_api_key_info['info'] = api_key_info
+        
+        if not message or not message.strip():
+            return history, "Please enter a message."
+        
+        try:
+            # Increment rate limit counter
+            auth_system.increment_rate_limit(api_key_info.key_id)
+            
+            # Process message with agent
+            messages = []
+            for human_msg, ai_msg in history:
+                messages.append({'role': 'user', 'content': human_msg})
+                if ai_msg:
+                    messages.append({'role': 'assistant', 'content': ai_msg})
+            messages.append({'role': 'user', 'content': message})
+            
+            # Generate response
+            response_text = ""
+            for response in agent.run(messages=messages):
+                if isinstance(response, list):
+                    for item in response:
+                        if isinstance(item, dict) and item.get('role') == 'assistant':
+                            content = item.get('content', '')
+                            if content:
+                                response_text = content
+                                break
+                    if response_text:
+                        break
+            
+            if not response_text:
+                response_text = "I apologize, but I couldn't generate a response. Please try again."
+            
+            # Update history
+            history.append([message, response_text])
+            
+            # Track usage
+            processing_time = time.time() - start_time
+            auth_system.log_request(
+                api_key_id=api_key_info.key_id,
+                endpoint="/gui/chat",
+                method="POST",
+                request_data={"query": message[:100] + "..." if len(message) > 100 else message},
+                response_data={"response": response_text[:100] + "..." if len(response_text) > 100 else response_text},
+                status_code=200,
+                processing_time=processing_time,
+                tokens_used=len(response_text.split()),  # Rough token estimate
+                model_used="qwen-agent-gui",
+                ip_address="gui-interface",
+                user_agent="qwen-agent-gui"
+            )
+            
+            return history, ""
+            
+        except Exception as e:
+            error_msg = f"Error processing request: {str(e)}"
+            logger.error(f"GUI error for user {api_key_info.name}: {e}")
+            
+            # Log the error
+            processing_time = time.time() - start_time
+            auth_system.log_request(
+                api_key_id=api_key_info.key_id,
+                endpoint="/gui/chat",
+                method="POST",
+                request_data={"query": message[:100] + "..." if len(message) > 100 else message},
+                response_data={"error": str(e)},
+                status_code=500,
+                processing_time=processing_time,
+                tokens_used=0,
+                model_used="qwen-agent-gui",
+                ip_address="gui-interface",
+                user_agent="qwen-agent-gui"
+            )
+            
+            return history, error_msg
     
-    # Launch the Web UI
-    ui.run(
-        server_name=GUI_CONFIG['host'], 
-        server_port=GUI_CONFIG['port'], 
-        share=GUI_CONFIG['share'],
-        auth=auth_config
+    def get_user_info(api_key):
+        """Get user information for display."""
+        if not api_key or not api_key.strip():
+            return "Please enter your API key"
+        
+        api_key_info = auth_system.validate_api_key(api_key.strip())
+        if not api_key_info:
+            return "Invalid API key"
+        
+        # Get rate limit info
+        allowed, rate_limit_info = auth_system.check_rate_limit(api_key_info.key_id, api_key_info)
+        
+        status = "✅ Active" if allowed else "🚫 Rate Limited"
+        return f"""
+**User:** {api_key_info.name} ({api_key_info.user_email})
+**Status:** {status}
+**Permissions:** {', '.join(api_key_info.permissions)}
+**Rate Limits:** {rate_limit_info['hourly_usage']}/{rate_limit_info['hourly_limit']} hourly, {rate_limit_info['daily_usage']}/{rate_limit_info['daily_limit']} daily
+"""
+    
+    # Create Gradio interface
+    with gr.Blocks(title="Qwen-Agent GUI", theme=gr.themes.Soft()) as demo:
+        gr.Markdown("""
+        # 🤖 Qwen-Agent Multi-Model AI Assistant
+        
+        **Dual-Model Architecture:**
+        - 🧠 **Orchestrator**: Qwen3-30B-Areeb-Lora (reasoning, function calling)
+        - 💻 **Code Specialist**: Qwen2.5-Coder-32B-Instruct (code generation)
+        
+        **Enter your API key below to start chatting!**
+        """)
+        
+        with gr.Row():
+            with gr.Column(scale=2):
+                api_key_input = gr.Textbox(
+                    label="🔑 API Key",
+                    placeholder="Enter your API key (e.g., qwen-...)",
+                    type="password",
+                    info="Your API key is required for authentication and usage tracking"
+                )
+            with gr.Column(scale=1):
+                user_info_display = gr.Markdown("Please enter your API key")
+        
+        # Update user info when API key changes
+        api_key_input.change(
+            fn=get_user_info,
+            inputs=[api_key_input],
+            outputs=[user_info_display]
+        )
+        
+        chatbot = gr.Chatbot(
+            label="💬 Chat with Qwen-Agent",
+            height=500,
+            show_copy_button=True
+        )
+        
+        with gr.Row():
+            msg_input = gr.Textbox(
+                label="Message",
+                placeholder="Ask me anything! I can help with coding, analysis, problem-solving, and more...",
+                scale=4
+            )
+            send_btn = gr.Button("Send 📤", scale=1, variant="primary")
+            clear_btn = gr.Button("Clear 🗑️", scale=1)
+        
+        # Chat functionality
+        def respond(api_key, message, history):
+            return validate_api_key_and_chat(api_key, message, history)
+        
+        send_btn.click(
+            fn=respond,
+            inputs=[api_key_input, msg_input, chatbot],
+            outputs=[chatbot, msg_input]
+        )
+        
+        msg_input.submit(
+            fn=respond,
+            inputs=[api_key_input, msg_input, chatbot],
+            outputs=[chatbot, msg_input]
+        )
+        
+        clear_btn.click(
+            fn=lambda: ([], ""),
+            outputs=[chatbot, msg_input]
+        )
+        
+        gr.Markdown("""
+        ---
+        **Features:**
+        - 🔒 Secure API key authentication
+        - 📊 Usage tracking and rate limiting
+        - 🛠️ Advanced code generation with specialized models
+        - 🔧 Function calling and tool usage
+        - 📈 Real-time usage statistics
+        
+        **Need an API key?** Contact your administrator or use the API key management system.
+        """)
+    
+    # Launch the interface
+    print(f"🚀 Starting Qwen-Agent GUI with API key authentication...")
+    print(f"📡 Server: {GUI_CONFIG['host']}:{GUI_CONFIG['port']}")
+    print(f"🔐 Authentication: Required (API Key)")
+    
+    demo.launch(
+        server_name=GUI_CONFIG['host'],
+        server_port=GUI_CONFIG['port'],
+        share=GUI_CONFIG.get('share', False),
+        auth=None,  # We handle auth internally
+        show_error=True
     )
 
 def run_api_server():
