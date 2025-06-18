@@ -939,6 +939,9 @@ def run_gui():
             
             try:
                 response_count = 0
+                latest_reasoning_content = ""
+                latest_content = ""
+                
                 for response in agent.run(messages=messages):
                     response_count += 1
                     print(f"📥 Response {response_count}: {type(response)} - {str(response)[:100]}...")
@@ -947,40 +950,45 @@ def run_gui():
                         for item in response:
                             print(f"   📄 Item: {type(item)} - {str(item)[:100]}...")
                             if isinstance(item, dict) and item.get('role') == 'assistant':
-                                # Check both content and reasoning_content
+                                # Collect all content as it streams
                                 content = item.get('content', '')
                                 reasoning_content = item.get('reasoning_content', '')
                                 
-                                # Prefer reasoning_content if content is empty (Qwen3 reasoning mode)
-                                if reasoning_content and not content.strip():
-                                    response_text = reasoning_content.strip()
-                                    print(f"✅ Found reasoning response: {response_text[:100]}...")
-                                    break
-                                elif content:
-                                    response_text = content
-                                    print(f"✅ Found content response: {content[:100]}...")
-                                    break
-                        if response_text:
-                            break
+                                if reasoning_content:
+                                    latest_reasoning_content = reasoning_content.strip()
+                                    print(f"🔄 Updated reasoning content: {latest_reasoning_content[:100]}...")
+                                
+                                if content:
+                                    latest_content = content.strip()
+                                    print(f"🔄 Updated content: {latest_content[:100]}...")
+                    
                     elif isinstance(response, dict) and response.get('role') == 'assistant':
                         # Handle direct dict response
                         content = response.get('content', '')
                         reasoning_content = response.get('reasoning_content', '')
                         
-                        # Prefer reasoning_content if content is empty (Qwen3 reasoning mode)
-                        if reasoning_content and not content.strip():
-                            response_text = reasoning_content.strip()
-                            print(f"✅ Found direct reasoning response: {response_text[:100]}...")
-                            break
-                        elif content:
-                            response_text = content
-                            print(f"✅ Found direct content response: {content[:100]}...")
-                            break
+                        if reasoning_content:
+                            latest_reasoning_content = reasoning_content.strip()
+                            print(f"🔄 Updated direct reasoning content: {latest_reasoning_content[:100]}...")
+                        
+                        if content:
+                            latest_content = content.strip()
+                            print(f"🔄 Updated direct content: {latest_content[:100]}...")
+                    
                     elif isinstance(response, str):
                         # Handle direct string response
-                        response_text = response
-                        print(f"✅ Found string response: {response[:100]}...")
-                        break
+                        latest_content = response.strip()
+                        print(f"🔄 Updated string response: {latest_content[:100]}...")
+                
+                # Choose the best response after all streaming is complete
+                if latest_reasoning_content and not latest_content:
+                    response_text = latest_reasoning_content
+                    print(f"✅ Using final reasoning response: {response_text[:100]}...")
+                elif latest_content:
+                    response_text = latest_content
+                    print(f"✅ Using final content response: {response_text[:100]}...")
+                else:
+                    response_text = ""
                 
                 print(f"🔄 Agent.run() completed. Total responses: {response_count}")
                 
