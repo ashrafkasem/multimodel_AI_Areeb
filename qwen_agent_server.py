@@ -886,6 +886,32 @@ def run_gui():
             history.append([message, "✅ Test successful! GUI is responding properly."])
             return history, ""
         
+        # Direct model test to bypass agent parsing
+        if message.strip().lower() == "direct":
+            try:
+                import httpx
+                response = httpx.post(
+                    "http://localhost:8000/v1/chat/completions",
+                    json={
+                        "model": "test",
+                        "messages": [{"role": "user", "content": "Say hello back"}],
+                        "max_tokens": 50,
+                        "temperature": 0.1
+                    },
+                    headers={"Authorization": "Bearer EMPTY"},
+                    timeout=30
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    content = data.get("choices", [{}])[0].get("message", {}).get("content", "No content")
+                    history.append([message, f"✅ Direct model response: {content}"])
+                else:
+                    history.append([message, f"❌ Model error: {response.status_code} - {response.text}"])
+                return history, ""
+            except Exception as e:
+                history.append([message, f"❌ Direct test error: {str(e)}"])
+                return history, ""
+        
         try:
             # Increment rate limit counter
             auth_system.increment_rate_limit(api_key_info.key_id)
