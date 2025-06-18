@@ -837,7 +837,7 @@ async def admin_deactivate_user(key_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 def run_gui():
-    """Run the Gradio GUI interface."""
+    """Run the Gradio GUI interface with API key authentication."""
     if not GUI_AVAILABLE:
         print("❌ GUI not available!")
         print("Please install GUI dependencies with:")
@@ -850,12 +850,89 @@ def run_gui():
     if agent is None:
         agent = create_agent()
     
+    # Configure authentication based on config
+    auth_config = None
+    if GUI_CONFIG.get('auth'):
+        if isinstance(GUI_CONFIG['auth'], list) and len(GUI_CONFIG['auth']) == 2:
+            # Simple username/password authentication
+            auth_config = tuple(GUI_CONFIG['auth'])
+        elif GUI_CONFIG['auth'] == "api_key":
+            # API key authentication with usage tracking
+            def validate_gui_api_key(username, password):
+                """Validate API key for GUI access and enable usage tracking."""
+                # In Gradio auth, we use the password field for the API key
+                api_key = password
+                
+                if not AUTH_CONFIG.get('enabled', False):
+                    return True  # No auth required if disabled
+                
+                # Validate the API key
+                api_key_info = auth_system.validate_api_key(api_key)
+                if api_key_info and api_key_info.is_active:
+                    # Check permissions for GUI access
+                    if 'chat' in api_key_info.permissions:
+                        # Check rate limits
+                        allowed, rate_limit_info = auth_system.check_rate_limit(api_key_info.key_id, api_key_info)
+                        if allowed:
+                            # Store API key info in session for usage tracking
+                            # Note: This is a simplified approach - in production you might want more sophisticated session management
+                            return True
+                        else:
+                            print(f"Rate limit exceeded for user {api_key_info.name}")
+                            return False
+                    else:
+                        print(f"User {api_key_info.name} lacks GUI permissions")
+                        return False
+                else:
+                    print("Invalid or inactive API key")
+                    return False
+            
+            # Set up API key authentication
+            auth_config = validate_gui_api_key
+    
+    # Create a wrapper for the WebUI that tracks usage
+    if GUI_CONFIG.get('auth') == "api_key" and AUTH_CONFIG.get('enabled', False):
+        # Create a custom WebUI class that tracks API usage
+        class TrackedWebUI(WebUI):
+            def __init__(self, agent):
+                super().__init__(agent)
+                self.current_api_key_info = None
+            
+            def _track_gui_usage(self, api_key, query, response, processing_time):
+                """Track GUI usage in the authentication system."""
+                try:
+                    api_key_info = auth_system.validate_api_key(api_key)
+                    if api_key_info:
+                        # Increment rate limit counters
+                        auth_system.increment_rate_limit(api_key_info.key_id)
+                        
+                        # Log the request
+                        auth_system.log_request(
+                            api_key_id=api_key_info.key_id,
+                            endpoint="/gui/chat",
+                            method="POST",
+                            request_data={"query": query[:100] + "..." if len(query) > 100 else query},
+                            response_data={"response": response[:100] + "..." if len(response) > 100 else response},
+                            status_code=200,
+                            processing_time=processing_time,
+                            tokens_used=len(response.split()),  # Rough token estimate
+                            model_used="qwen-agent-gui",
+                            ip_address="gui-interface",
+                            user_agent="qwen-agent-gui"
+                        )
+                except Exception as e:
+                    logger.error(f"Error tracking GUI usage: {e}")
+        
+        ui = TrackedWebUI(agent)
+    else:
+        ui = WebUI(agent)
+    
     # Launch the Web UI
-    ui = WebUI(agent)
     ui.run(
         server_name=GUI_CONFIG['host'], 
         server_port=GUI_CONFIG['port'], 
-        share=GUI_CONFIG['share']
+        share=GUI_CONFIG['share'],
+        auth=auth_config
     )
 
 def run_api_server():

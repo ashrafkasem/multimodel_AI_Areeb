@@ -38,7 +38,7 @@ server:
     host: "0.0.0.0"
     port: 7860
     share: false
-    auth: null  # Set to enable authentication
+    auth: "api_key"  # Use API key authentication for usage tracking
 
 # Agent Configuration
 agent:
