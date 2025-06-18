@@ -183,59 +183,61 @@ class AdvancedCodeGenerator(BaseTool):
             language = parsed_params.get('language', '')
             complexity = parsed_params.get('complexity', 'intermediate')
             
-            # Enhanced system prompt for code generation
-            system_prompt = f"""You are an expert software engineer and code architect. Generate clean, efficient, and well-documented code.
-
-Guidelines:
-- Write production-ready code with proper error handling
-- Include comprehensive comments and docstrings
-- Follow best practices and design patterns
-- Ensure code is secure and optimized
-- Provide example usage when applicable
-- Code complexity level: {complexity}"""
+            # Streamlined system prompt for faster processing
+            system_prompt = "You are an expert programmer. Generate clean, well-documented code following best practices."
             
-            # Enhanced user prompt
+            # Concise user prompt
             if language:
-                enhanced_prompt = f"Generate {language} code for: {prompt}\n\nRequirements:\n- Use {language} best practices\n- Include proper error handling\n- Add comprehensive documentation"
+                enhanced_prompt = f"Write {language} code: {prompt}"
             else:
-                enhanced_prompt = f"Generate code for: {prompt}\n\nRequirements:\n- Choose the most appropriate programming language\n- Include proper error handling\n- Add comprehensive documentation"
+                enhanced_prompt = f"Write code: {prompt}"
             
-            # Prepare request for specialized code model
+            # Optimized payload for speed
             payload = {
                 'model': CODE_MODEL_CONFIG['model'],
                 'messages': [
                     {'role': 'system', 'content': system_prompt},
                     {'role': 'user', 'content': enhanced_prompt}
                 ],
-                'temperature': 0.1,  # Lower temperature for consistent code
-                'max_tokens': 4096,
+                'temperature': 0.1,
+                'max_tokens': 2048,  # Reduced for faster response
                 'top_p': 0.95
             }
             
-            # Make request to specialized code model
-            response = httpx.post(
-                CODE_MODEL_CONFIG['url'],
-                json=payload,
-                headers={'Content-Type': 'application/json'},
-                timeout=CODE_MODEL_CONFIG['timeout']
-            )
+            # Use async HTTP client for better performance
+            import asyncio
             
-            response.raise_for_status()
-            result = response.json()
+            async def make_request():
+                async with httpx.AsyncClient(timeout=30) as client:  # Shorter timeout
+                    response = await client.post(
+                        CODE_MODEL_CONFIG['url'],
+                        json=payload,
+                        headers={'Content-Type': 'application/json'}
+                    )
+                    response.raise_for_status()
+                    return response.json()
+            
+            # Run async request
+            try:
+                loop = asyncio.get_event_loop()
+                result = loop.run_until_complete(make_request())
+            except RuntimeError:
+                # If no event loop, create one
+                result = asyncio.run(make_request())
             
             # Extract generated code
             generated_code = result['choices'][0]['message']['content']
             
-            logger.info(f"Code generated successfully using specialized model for: {prompt[:50]}...")
+            logger.info(f"Code generated successfully for: {prompt[:30]}...")
             return generated_code
             
         except httpx.RequestError as e:
-            error_msg = f"Error connecting to code model: {str(e)}"
+            error_msg = f"Connection error: {str(e)}"
             logger.error(error_msg)
-            return f"Error: Unable to connect to specialized code model. {error_msg}"
+            return f"Error: Unable to connect to code model. {error_msg}"
         
         except Exception as e:
-            error_msg = f"Error in code generation: {str(e)}"
+            error_msg = f"Code generation error: {str(e)}"
             logger.error(error_msg)
             return f"Error: {error_msg}"
 

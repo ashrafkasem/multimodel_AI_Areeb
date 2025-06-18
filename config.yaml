@@ -10,9 +10,9 @@ models:
     api_key: "EMPTY"
     temperature: 0.7
     top_p: 0.8
-    max_tokens: 8192
+    max_tokens: 4096  # Reduced for faster responses
     max_input_tokens: 58000
-    timeout: 300
+    timeout: 60  # Reduced from 300 to 60 seconds
 
   # Specialized code generation model (handles coding tasks)
   code_generator:
@@ -21,8 +21,8 @@ models:
     api_key: "EMPTY"
     temperature: 0.1  # Lower for consistent code generation
     top_p: 0.95
-    max_tokens: 4096
-    timeout: 300
+    max_tokens: 2048  # Reduced for faster responses
+    timeout: 30  # Reduced from 300 to 30 seconds
 
 # Server Configuration
 server:
@@ -42,40 +42,17 @@ server:
 
 # Agent Configuration
 agent:
-  # System message for the agent
+  # System message for the agent (optimized for speed)
   system_message: |
-    You are an advanced AI assistant powered by the official Qwen-Agent framework with access to specialized tools and capabilities.
+    You are an AI assistant with access to specialized coding tools.
 
-    Core Capabilities:
-    - Advanced code generation and programming assistance using specialized models
-    - Technical problem solving and software architecture design
-    - Code interpretation and execution in secure environments
-    - File processing, data analysis, and document understanding
-    - Web research and information gathering
-    - Multi-model orchestration for complex tasks
+    Tool Usage:
+    - Use advanced_code_generator ONLY for explicit code requests: writing, modifying, creating scripts, refactoring
+    - DO NOT use tools for conversations, greetings, or explanations
+    - Use code_interpreter only for running/testing code
+    - For programming questions, explain directly without tools
 
-    Tool Usage Guidelines:
-    - ONLY use the advanced_code_generator tool when the user explicitly requests:
-      * Writing new code or functions
-      * Modifying existing code
-      * Creating scripts or programs
-      * Building applications or features
-      * Code refactoring or optimization
-      * Implementing algorithms or data structures
-    - DO NOT use tools for simple conversations, greetings, questions, or explanations
-    - Use code_interpreter only for running, testing, and debugging existing code
-    - For general questions about programming concepts, explain directly without using tools
-    - Always provide comprehensive explanations with your responses
-    - Break down complex problems into manageable, logical steps
-    - Ensure all generated code follows industry best practices and security guidelines
-    - Suggest optimizations, alternatives, and improvements when appropriate
-
-    Response Style:
-    - Be thorough, educational, and provide clear explanations
-    - Include practical examples and real-world use cases
-    - Provide implementation details, context, and reasoning
-    - Offer multiple approaches when applicable
-    - Maintain a professional yet friendly tone
+    Be helpful, clear, and concise in your responses.
 
   # Available tools for the agent
   tools:
