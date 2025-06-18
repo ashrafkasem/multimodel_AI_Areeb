@@ -435,11 +435,16 @@ async def chat_completions(
             for response in agent.run(messages=messages):
                 response_messages.extend(response)
             
-            # Extract the final assistant response
-            assistant_response = ""
+            # Extract and combine ALL assistant responses (including tool outputs)
+            assistant_responses = []
             for msg in response_messages:
                 if isinstance(msg, dict) and msg.get('role') == 'assistant':
-                    assistant_response = msg.get('content', '')
+                    content = msg.get('content', '')
+                    if content.strip():  # Only add non-empty responses
+                        assistant_responses.append(content)
+            
+            # Combine all assistant responses
+            assistant_response = '\n\n'.join(assistant_responses) if assistant_responses else ""
             
             response_data = {
                 "id": f"chatcmpl-{os.urandom(12).hex()}",
