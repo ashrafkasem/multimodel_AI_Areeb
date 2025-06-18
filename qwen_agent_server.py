@@ -432,19 +432,37 @@ async def chat_completions(
         else:
             # Non-streaming response
             response_messages = []
-            for response in agent.run(messages=messages):
+            logger.info("=== DEBUG: Starting agent.run() ===")
+            for i, response in enumerate(agent.run(messages=messages)):
+                logger.info(f"Agent response batch {i}: {len(response)} messages")
+                for j, msg in enumerate(response):
+                    logger.info(f"  Message {j}: {type(msg)} - {str(msg)[:200]}...")
                 response_messages.extend(response)
+            logger.info(f"=== DEBUG: Total messages collected: {len(response_messages)} ===")
             
             # Extract and combine ALL assistant responses (including tool outputs)
             assistant_responses = []
-            for msg in response_messages:
-                if isinstance(msg, dict) and msg.get('role') == 'assistant':
+            tool_responses = []
+            logger.info(f"Processing {len(response_messages)} response messages")
+            for i, msg in enumerate(response_messages):
+                logger.info(f"Message {i}: role={msg.get('role')}, content_length={len(str(msg.get('content', '')))}")
+                if isinstance(msg, dict):
+                    role = msg.get('role')
                     content = msg.get('content', '')
-                    if content.strip():  # Only add non-empty responses
+                    
+                    # Check for tool responses (might have different role)
+                    if 'tool' in str(msg).lower() or 'function' in str(msg).lower():
+                        tool_responses.append(content)
+                        logger.info(f"Found potential tool response: {content[:100]}...")
+                    
+                    if role == 'assistant' and content.strip():
                         assistant_responses.append(content)
+                        logger.info(f"Added assistant response {len(assistant_responses)}: {content[:100]}...")
             
-            # Combine all assistant responses
-            assistant_response = '\n\n'.join(assistant_responses) if assistant_responses else ""
+            # Combine tool responses and assistant responses
+            all_responses = tool_responses + assistant_responses
+            assistant_response = '\n\n'.join(all_responses) if all_responses else ""
+            logger.info(f"Final combined response length: {len(assistant_response)}, parts: {len(all_responses)} (tools: {len(tool_responses)}, assistant: {len(assistant_responses)})")
             
             response_data = {
                 "id": f"chatcmpl-{os.urandom(12).hex()}",
