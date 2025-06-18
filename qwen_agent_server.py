@@ -883,7 +883,8 @@ def run_gui():
         
         # Test response to verify GUI is working
         if message.strip().lower() == "test":
-            history.append([message, "✅ Test successful! GUI is responding properly."])
+            history.append({"role": "user", "content": message})
+            history.append({"role": "assistant", "content": "✅ Test successful! GUI is responding properly."})
             return history, ""
         
         # Direct model test to bypass agent parsing
@@ -904,12 +905,15 @@ def run_gui():
                 if response.status_code == 200:
                     data = response.json()
                     content = data.get("choices", [{}])[0].get("message", {}).get("content", "No content")
-                    history.append([message, f"✅ Direct model response: {content}"])
+                    history.append({"role": "user", "content": message})
+                    history.append({"role": "assistant", "content": f"✅ Direct model response: {content}"})
                 else:
-                    history.append([message, f"❌ Model error: {response.status_code} - {response.text}"])
+                    history.append({"role": "user", "content": message})
+                    history.append({"role": "assistant", "content": f"❌ Model error: {response.status_code} - {response.text}"})
                 return history, ""
             except Exception as e:
-                history.append([message, f"❌ Direct test error: {str(e)}"])
+                history.append({"role": "user", "content": message})
+                history.append({"role": "assistant", "content": f"❌ Direct test error: {str(e)}"})
                 return history, ""
         
         try:
@@ -918,10 +922,15 @@ def run_gui():
             
             # Process message with agent
             messages = []
-            for human_msg, ai_msg in history:
-                messages.append({'role': 'user', 'content': human_msg})
-                if ai_msg:
-                    messages.append({'role': 'assistant', 'content': ai_msg})
+            for msg in history:
+                if isinstance(msg, dict):
+                    messages.append(msg)
+                else:
+                    # Handle legacy tuple format
+                    human_msg, ai_msg = msg
+                    messages.append({'role': 'user', 'content': human_msg})
+                    if ai_msg:
+                        messages.append({'role': 'assistant', 'content': ai_msg})
             messages.append({'role': 'user', 'content': message})
             
             # Generate response
@@ -985,8 +994,9 @@ def run_gui():
             
             print(f"📤 Final response text length: {len(response_text)}")
             
-            # Update history
-            history.append([message, response_text])
+            # Update history (using new Gradio messages format)
+            history.append({"role": "user", "content": message})
+            history.append({"role": "assistant", "content": response_text})
             
             # Track usage
             processing_time = time.time() - start_time
@@ -1081,7 +1091,8 @@ def run_gui():
         chatbot = gr.Chatbot(
             label="💬 Chat with Qwen-Agent",
             height=500,
-            show_copy_button=True
+            show_copy_button=True,
+            type="messages"
         )
         
         with gr.Row():
