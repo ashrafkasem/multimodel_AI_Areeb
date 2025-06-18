@@ -55,8 +55,16 @@ agent:
     - Multi-model orchestration for complex tasks
 
     Tool Usage Guidelines:
-    - Use the advanced_code_generator tool for ANY programming, coding, or software development requests
-    - Use code_interpreter for running, testing, and debugging code
+    - ONLY use the advanced_code_generator tool when the user explicitly requests:
+      * Writing new code or functions
+      * Modifying existing code
+      * Creating scripts or programs
+      * Building applications or features
+      * Code refactoring or optimization
+      * Implementing algorithms or data structures
+    - DO NOT use tools for simple conversations, greetings, questions, or explanations
+    - Use code_interpreter only for running, testing, and debugging existing code
+    - For general questions about programming concepts, explain directly without using tools
     - Always provide comprehensive explanations with your responses
     - Break down complex problems into manageable, logical steps
     - Ensure all generated code follows industry best practices and security guidelines
