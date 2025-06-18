@@ -12,7 +12,7 @@ models:
     top_p: 0.8
     max_tokens: 4096  # Reduced for faster responses
     max_input_tokens: 58000
-    timeout: 60  # Reduced from 300 to 60 seconds
+    timeout: 150  # Increased to 2.5 minutes to wait for coder responses
 
   # Specialized code generation model (handles coding tasks)
   code_generator:
@@ -22,7 +22,7 @@ models:
     temperature: 0.1  # Lower for consistent code generation
     top_p: 0.95
     max_tokens: 2048  # Reduced for faster responses
-    timeout: 30  # Reduced from 300 to 30 seconds
+    timeout: 120  # Increased to 2 minutes for complex code generation
 
 # Server Configuration
 server:

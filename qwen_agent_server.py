@@ -208,7 +208,9 @@ class AdvancedCodeGenerator(BaseTool):
             import asyncio
             
             async def make_request():
-                async with httpx.AsyncClient(timeout=30) as client:  # Shorter timeout
+                # Use config timeout + buffer to avoid premature cancellation
+                timeout = CODE_MODEL_CONFIG.get('timeout', 30) + 10
+                async with httpx.AsyncClient(timeout=timeout) as client:
                     response = await client.post(
                         CODE_MODEL_CONFIG['url'],
                         json=payload,
@@ -217,13 +219,16 @@ class AdvancedCodeGenerator(BaseTool):
                     response.raise_for_status()
                     return response.json()
             
-            # Run async request
+            # Run async request with proper error handling
             try:
                 loop = asyncio.get_event_loop()
                 result = loop.run_until_complete(make_request())
             except RuntimeError:
                 # If no event loop, create one
                 result = asyncio.run(make_request())
+            except asyncio.TimeoutError:
+                logger.warning(f"Code generation timeout for: {prompt[:30]}...")
+                return "Error: Code generation timed out. Please try a simpler request."
             
             # Extract generated code
             generated_code = result['choices'][0]['message']['content']
