@@ -8,10 +8,24 @@ echo
 # Set HuggingFace cache directory
 export HF_HOME=/ephemeral/
 
-# Kill existing vLLM processes
+# Kill existing vLLM processes and free GPU memory
 echo "Stopping existing vLLM processes..."
 pkill -f "vllm serve"
 sleep 5
+
+# Force kill if still running
+echo "Force killing any remaining vLLM processes..."
+pkill -9 -f "vllm serve" 2>/dev/null || true
+sleep 5
+
+# Clear GPU memory
+echo "Clearing GPU memory..."
+python3 -c "import torch; torch.cuda.empty_cache()" 2>/dev/null || true
+sleep 5
+
+# Check GPU memory status
+echo "GPU memory status:"
+nvidia-smi --query-gpu=memory.used,memory.free,memory.total --format=csv,noheader,nounits
 
 # Start optimized Orchestrator on GPU 0 (Qwen3-30B-Areeb-Lora)
 echo "Starting optimized Orchestrator on GPU 0..."
