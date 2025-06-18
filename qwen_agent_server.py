@@ -938,19 +938,34 @@ def run_gui():
                         for item in response:
                             print(f"   📄 Item: {type(item)} - {str(item)[:100]}...")
                             if isinstance(item, dict) and item.get('role') == 'assistant':
+                                # Check both content and reasoning_content
                                 content = item.get('content', '')
-                                if content:
+                                reasoning_content = item.get('reasoning_content', '')
+                                
+                                # Prefer reasoning_content if content is empty (Qwen3 reasoning mode)
+                                if reasoning_content and not content.strip():
+                                    response_text = reasoning_content.strip()
+                                    print(f"✅ Found reasoning response: {response_text[:100]}...")
+                                    break
+                                elif content:
                                     response_text = content
-                                    print(f"✅ Found assistant response: {content[:100]}...")
+                                    print(f"✅ Found content response: {content[:100]}...")
                                     break
                         if response_text:
                             break
                     elif isinstance(response, dict) and response.get('role') == 'assistant':
                         # Handle direct dict response
                         content = response.get('content', '')
-                        if content:
+                        reasoning_content = response.get('reasoning_content', '')
+                        
+                        # Prefer reasoning_content if content is empty (Qwen3 reasoning mode)
+                        if reasoning_content and not content.strip():
+                            response_text = reasoning_content.strip()
+                            print(f"✅ Found direct reasoning response: {response_text[:100]}...")
+                            break
+                        elif content:
                             response_text = content
-                            print(f"✅ Found direct assistant response: {content[:100]}...")
+                            print(f"✅ Found direct content response: {content[:100]}...")
                             break
                     elif isinstance(response, str):
                         # Handle direct string response
