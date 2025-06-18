@@ -980,13 +980,17 @@ def run_gui():
                         latest_content = response.strip()
                         print(f"🔄 Updated string response: {latest_content[:100]}...")
                 
-                # Choose the best response after all streaming is complete
-                if latest_reasoning_content and not latest_content:
-                    response_text = latest_reasoning_content
-                    print(f"✅ Using final reasoning response: {response_text[:100]}...")
+                # Determine the best response - show both thinking and final response
+                if latest_reasoning_content and latest_content:
+                    # Show both the thinking process and the final answer
+                    response_text = f"**🤔 Thinking:**\n{latest_reasoning_content}\n\n**💬 Response:**\n{latest_content}"
+                    print(f"✅ Using both reasoning and content response")
+                elif latest_reasoning_content:
+                    response_text = f"**🤔 Thinking:**\n{latest_reasoning_content}"
+                    print(f"✅ Using reasoning-only response: {response_text[:100]}...")
                 elif latest_content:
                     response_text = latest_content
-                    print(f"✅ Using final content response: {response_text[:100]}...")
+                    print(f"✅ Using content-only response: {response_text[:100]}...")
                 else:
                     response_text = ""
                 
