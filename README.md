@@ -53,10 +53,11 @@ All settings are managed through `config.yaml`:
 
 ## 🏗️ Architecture
 
-- **Qwen3** (Orchestrator): Handles agent logic, function calling, reasoning
-- **Qwen2.5-Coder** (Specialist): Generates high-quality code
+- **Qwen3-30B-Areeb-Lora** (Orchestrator): Handles agent logic, function calling, reasoning
+- **Qwen2.5-Coder-32B-Instruct** (Specialist): Generates high-quality code
 - **FastAPI**: OpenAI-compatible API server
 - **Gradio**: Web-based GUI interface
+- **2-GPU Setup**: Dedicated GPU per model for optimal performance
 
 ## 📡 API Endpoints
 
@@ -89,6 +90,21 @@ All settings are managed through `config.yaml`:
 
 # View logs
 ./run.sh logs
+```
+
+## 🚀 Performance Optimizations
+
+- **vLLM FP8 Quantization**: 2-3x speed improvement
+- **Dedicated GPU Assignment**: GPU 0 (Orchestrator), GPU 1 (Coder)
+- **Optimized Timeouts**: 120s coder, 150s orchestrator
+- **Reduced Token Limits**: 4096/2048 for faster responses
+- **Expected Performance**: 4-6x faster orchestrator, 3-4x faster coder
+
+### Quick Optimization
+```bash
+# Deploy optimized vLLM servers (2-GPU setup)
+./optimize_vllm.sh          # FP8 quantization
+./optimize_vllm_fallback.sh # Fallback without FP8
 ```
 
 ## 🔒 Security

@@ -1142,8 +1142,8 @@ def run_gui():
     print(f"🔐 Authentication: Required (API Key)")
     
     demo.launch(
-        server_name=GUI_CONFIG['host'],
-        server_port=GUI_CONFIG['port'],
+        server_name=GUI_CONFIG['host'], 
+        server_port=GUI_CONFIG['port'], 
         share=GUI_CONFIG.get('share', False),
         auth=None,  # We handle auth internally
         show_error=True
