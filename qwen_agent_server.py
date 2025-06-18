@@ -881,6 +881,11 @@ def run_gui():
         if not message or not message.strip():
             return history, "Please enter a message."
         
+        # Test response to verify GUI is working
+        if message.strip().lower() == "test":
+            history.append([message, "✅ Test successful! GUI is responding properly."])
+            return history, ""
+        
         try:
             # Increment rate limit counter
             auth_system.increment_rate_limit(api_key_info.key_id)
@@ -895,19 +900,49 @@ def run_gui():
             
             # Generate response
             response_text = ""
-            for response in agent.run(messages=messages):
-                if isinstance(response, list):
-                    for item in response:
-                        if isinstance(item, dict) and item.get('role') == 'assistant':
-                            content = item.get('content', '')
-                            if content:
-                                response_text = content
-                                break
-                    if response_text:
+            print(f"🤖 Starting agent.run() for message: {message[:50]}...")
+            
+            try:
+                response_count = 0
+                for response in agent.run(messages=messages):
+                    response_count += 1
+                    print(f"📥 Response {response_count}: {type(response)} - {str(response)[:100]}...")
+                    
+                    if isinstance(response, list):
+                        for item in response:
+                            print(f"   📄 Item: {type(item)} - {str(item)[:100]}...")
+                            if isinstance(item, dict) and item.get('role') == 'assistant':
+                                content = item.get('content', '')
+                                if content:
+                                    response_text = content
+                                    print(f"✅ Found assistant response: {content[:100]}...")
+                                    break
+                        if response_text:
+                            break
+                    elif isinstance(response, dict) and response.get('role') == 'assistant':
+                        # Handle direct dict response
+                        content = response.get('content', '')
+                        if content:
+                            response_text = content
+                            print(f"✅ Found direct assistant response: {content[:100]}...")
+                            break
+                    elif isinstance(response, str):
+                        # Handle direct string response
+                        response_text = response
+                        print(f"✅ Found string response: {response[:100]}...")
                         break
+                
+                print(f"🔄 Agent.run() completed. Total responses: {response_count}")
+                
+            except Exception as e:
+                print(f"❌ Error in agent.run(): {e}")
+                response_text = f"Error generating response: {str(e)}"
             
             if not response_text:
+                print("⚠️ No response text found!")
                 response_text = "I apologize, but I couldn't generate a response. Please try again."
+            
+            print(f"📤 Final response text length: {len(response_text)}")
             
             # Update history
             history.append([message, response_text])
@@ -1019,7 +1054,10 @@ def run_gui():
         
         # Chat functionality
         def respond(api_key, message, history):
-            return validate_api_key_and_chat(api_key, message, history)
+            print(f"🎯 Gradio respond() called with message: {message[:50]}...")
+            result = validate_api_key_and_chat(api_key, message, history)
+            print(f"🎯 Gradio respond() returning: {type(result)} - History length: {len(result[0]) if isinstance(result, tuple) and len(result) > 0 else 'unknown'}")
+            return result
         
         send_btn.click(
             fn=respond,
