@@ -935,20 +935,14 @@ def run_gui():
             
             # Generate response
             response_text = ""
-            print(f"🤖 Starting agent.run() for message: {message[:50]}...")
             
             try:
-                response_count = 0
                 latest_reasoning_content = ""
                 latest_content = ""
                 
                 for response in agent.run(messages=messages):
-                    response_count += 1
-                    print(f"📥 Response {response_count}: {type(response)} - {str(response)[:100]}...")
-                    
                     if isinstance(response, list):
                         for item in response:
-                            print(f"   📄 Item: {type(item)} - {str(item)[:100]}...")
                             if isinstance(item, dict) and item.get('role') == 'assistant':
                                 # Collect all content as it streams
                                 content = item.get('content', '')
@@ -956,11 +950,9 @@ def run_gui():
                                 
                                 if reasoning_content:
                                     latest_reasoning_content = reasoning_content.strip()
-                                    print(f"🔄 Updated reasoning content: {latest_reasoning_content[:100]}...")
                                 
                                 if content:
                                     latest_content = content.strip()
-                                    print(f"🔄 Updated content: {latest_content[:100]}...")
                     
                     elif isinstance(response, dict) and response.get('role') == 'assistant':
                         # Handle direct dict response
@@ -969,42 +961,30 @@ def run_gui():
                         
                         if reasoning_content:
                             latest_reasoning_content = reasoning_content.strip()
-                            print(f"🔄 Updated direct reasoning content: {latest_reasoning_content[:100]}...")
                         
                         if content:
                             latest_content = content.strip()
-                            print(f"🔄 Updated direct content: {latest_content[:100]}...")
                     
                     elif isinstance(response, str):
                         # Handle direct string response
                         latest_content = response.strip()
-                        print(f"🔄 Updated string response: {latest_content[:100]}...")
                 
                 # Determine the best response - show both thinking and final response
                 if latest_reasoning_content and latest_content:
                     # Show both the thinking process and the final answer
                     response_text = f"**🤔 Thinking:**\n{latest_reasoning_content}\n\n**💬 Response:**\n{latest_content}"
-                    print(f"✅ Using both reasoning and content response")
                 elif latest_reasoning_content:
                     response_text = f"**🤔 Thinking:**\n{latest_reasoning_content}"
-                    print(f"✅ Using reasoning-only response: {response_text[:100]}...")
                 elif latest_content:
                     response_text = latest_content
-                    print(f"✅ Using content-only response: {response_text[:100]}...")
                 else:
                     response_text = ""
                 
-                print(f"🔄 Agent.run() completed. Total responses: {response_count}")
-                
             except Exception as e:
-                print(f"❌ Error in agent.run(): {e}")
                 response_text = f"Error generating response: {str(e)}"
             
             if not response_text:
-                print("⚠️ No response text found!")
                 response_text = "I apologize, but I couldn't generate a response. Please try again."
-            
-            print(f"📤 Final response text length: {len(response_text)}")
             
             # Update history (using new Gradio messages format)
             history.append({"role": "user", "content": message})
@@ -1118,10 +1098,7 @@ def run_gui():
         
         # Chat functionality
         def respond(api_key, message, history):
-            print(f"🎯 Gradio respond() called with message: {message[:50]}...")
-            result = validate_api_key_and_chat(api_key, message, history)
-            print(f"🎯 Gradio respond() returning: {type(result)} - History length: {len(result[0]) if isinstance(result, tuple) and len(result) > 0 else 'unknown'}")
-            return result
+            return validate_api_key_and_chat(api_key, message, history)
         
         send_btn.click(
             fn=respond,
