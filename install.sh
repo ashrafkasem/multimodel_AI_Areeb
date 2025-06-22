@@ -72,6 +72,10 @@ python3 -m pip install "qwen-agent[code_interpreter]"
 print_status "Installing API server dependencies..."
 python3 -m pip install fastapi uvicorn
 
+# Install vLLM for model serving
+print_status "Installing vLLM for model serving..."
+python3 -m pip install vllm
+
 # Install utility dependencies
 print_status "Installing utility dependencies..."
 python3 -m pip install httpx json5 pydantic requests pyyaml tabulate
@@ -95,20 +99,23 @@ echo "======================="
 echo "✅ Core qwen-agent framework"
 echo "✅ GUI support (Gradio interface)"
 echo "✅ Code interpreter capabilities"
+echo "✅ vLLM model serving engine"
 echo "✅ FastAPI server components"
 echo "✅ All utility dependencies"
 echo ""
 echo "📋 Next Steps:"
 echo "=============="
 echo "1. Configure your models in config.yaml"
-echo "2. Run: ./run.sh --help to see all options"
+echo "2. Start vLLM models: ./start_vllm_secure.sh"
 echo "3. Start API server: ./run.sh api"
-echo "4. Start GUI: ./run.sh gui"
-echo "5. Run tests: ./run.sh test"
+echo "4. Start GUI: ./run.sh gui (optional)"
+echo "5. Test security: ./test_security.sh"
+echo "6. Run tests: ./run.sh test"
 echo ""
 echo "📚 Documentation:"
 echo "================="
 echo "• README_QWEN_AGENT.md - Comprehensive guide"
+echo "• AUTHENTICATION_GUIDE.md - Security & authentication setup"
 echo "• SETUP_SUMMARY.md - Quick reference"
 echo "• config.yaml - Configuration file"
 echo ""
