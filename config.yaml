@@ -68,13 +68,18 @@ agent:
 
 # Authentication Configuration
 authentication:
-  enabled: true  # Enable authentication
+  enabled: true  # Enable authentication for security
   api_keys:
     # Example API key configuration
     "V2C-8UkDpfeuisiWxMCkf-5cFpY9zvRxy5MoZ47PVLY":
       name: "Continue/Roo Code"
       permissions: ["chat", "code_generation"]
       rate_limit: 100  # requests per hour
+    # Add more API keys here as needed
+    # "your-api-key-here":
+    #   name: "User Name"
+    #   permissions: ["chat", "code_generation"]
+    #   rate_limit: 100
   default_permissions: ["chat"]
 
 # Performance Configuration

@@ -1,8 +1,60 @@
-# 🔐 Authentication & Usage Tracking System
+# 🔐 Authentication & Security System
 
-A comprehensive authentication and usage tracking system for your Qwen-Agent server with API key management, request logging, user statistics, and analytics.
+A comprehensive authentication, security, and usage tracking system for your Qwen-Agent server with API key management, secure model access, request logging, user statistics, and analytics.
 
-## 🚀 Quick Start
+## 🔒 Security Setup (IMPORTANT)
+
+### Problem: Unsecured vLLM Models
+Your vLLM models (ports 8000, 8001) are currently accessible from outside, allowing direct access without authentication.
+
+### Solution: Secure Configuration
+Use secure optimization scripts that bind vLLM models to localhost only, while keeping your master API publicly accessible with authentication.
+
+#### 🚀 Quick Security Setup
+
+1. **Stop Current vLLM Processes**
+```bash
+pkill -f "vllm serve"
+```
+
+2. **Start Secure vLLM Models**:
+```bash
+./start_vllm_secure.sh
+```
+
+3. **Start Master API**
+```bash
+./run.sh api
+```
+
+4. **Test Security**
+```bash
+./test_security.sh
+```
+
+#### 🔐 Security Architecture
+
+**Before (Insecure):**
+```
+External User → vLLM Models (ports 8000, 8001) ❌ DIRECT ACCESS
+External User → Master API (port 8002) ✅ With authentication
+```
+
+**After (Secure):**
+```
+External User → vLLM Models (ports 8000, 8001) ❌ BLOCKED (localhost only)
+External User → Master API (port 8002) ✅ Only entry point with authentication
+Master API → vLLM Models (localhost) ✅ Internal communication only
+```
+
+#### ✅ Security Benefits
+- **External Access Blocked**: Direct access to vLLM models impossible from outside
+- **API Key Required**: All external requests go through authenticated master API
+- **Rate Limiting**: Built-in rate limiting via auth system
+- **Usage Tracking**: All requests logged and tracked
+- **Fine-grained Permissions**: Control access to specific features
+
+## 🚀 Authentication Quick Start
 
 ### 1. Enable Authentication
 
@@ -355,7 +407,35 @@ print(response.json())
 
 ## 🔧 Troubleshooting
 
-### Common Issues
+### Security Issues
+
+**Models Still Accessible from Outside**
+```bash
+# Test security configuration
+./test_security.sh
+
+# If insecure, restart with secure script
+pkill -f "vllm serve"
+./start_vllm_secure.sh
+```
+
+**Expected Security Test Results:**
+```bash
+✅ SECURE: Orchestrator blocked from external access
+✅ SECURE: Coder blocked from external access  
+✅ OK: Orchestrator accessible from localhost
+✅ OK: Coder accessible from localhost
+✅ OK: Master API accessible from outside
+```
+
+**Internal Communication Failing**
+```bash
+# Ensure config uses localhost URLs
+grep -A 5 "models:" config.yaml
+# Should show: url: "http://localhost:8000/v1"
+```
+
+### Authentication Issues
 
 **Authentication Disabled**
 ```bash
@@ -392,9 +472,26 @@ logging:
   level: "DEBUG"
 ```
 
+### Security Verification
+
+**Manual Testing:**
+```bash
+# These should FAIL (connection refused/timeout):
+curl http://YOUR_IP:8000/health
+curl http://YOUR_IP:8001/health
+
+# These should WORK:
+curl http://localhost:8000/health  # From server itself
+curl http://localhost:8001/health  # From server itself
+curl http://YOUR_IP:8002/health    # Master API from anywhere
+```
+
 ## 🚀 Production Deployment
 
 ### Security Checklist
+- [ ] **Configure secure vLLM binding**: Use `./start_vllm_secure.sh`
+- [ ] **Test security configuration**: Run `./test_security.sh`
+- [ ] **Verify localhost-only access**: Ports 8000/8001 blocked from outside
 - [ ] Change default API keys
 - [ ] Enable HTTPS/TLS
 - [ ] Set appropriate rate limits

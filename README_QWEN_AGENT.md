@@ -267,7 +267,7 @@ authentication:
    - Verify model is loaded correctly
 
 3. **Slow responses**
-   - Use the vLLM optimization scripts (`./optimize_vllm.sh`)
+   - Use the secure vLLM script (`./start_vllm_secure.sh`)
    - Adjust `max_tokens` in configuration (currently optimized to 4096/2048)
    - Reduce `temperature` for faster sampling
    - Check model server resources and GPU utilization
@@ -291,7 +291,7 @@ python qwen_agent_server.py
 
 ### ✅ **Completed Optimizations**
 - **2-GPU vLLM Setup**: Dedicated GPU per model for maximum performance
-- **FP8 Quantization**: 2-3x speed improvement with `optimize_vllm.sh`
+- **Secure Configuration**: Models accessible only through authenticated API
 - **Timeout Optimization**: Reduced from 300s to 120s for faster responses
 - **Token Limits**: Optimized to 4096/2048 tokens for speed vs quality balance
 - **Async HTTP Client**: Improved request handling and timeout management

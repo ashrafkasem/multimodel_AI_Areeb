@@ -103,8 +103,7 @@ All settings are managed through `config.yaml`:
 ### Quick Optimization
 ```bash
 # Deploy optimized vLLM servers (2-GPU setup)
-./optimize_vllm.sh          # FP8 quantization
-./optimize_vllm_fallback.sh # Fallback without FP8
+./start_vllm_secure.sh      # Secure vLLM startup (localhost only)
 ```
 
 ## 🔒 Security
