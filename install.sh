@@ -76,6 +76,10 @@ python3 -m pip install fastapi uvicorn
 print_status "Installing vLLM for model serving..."
 python3 -m pip install vllm
 
+# Install Hugging Face Hub for model authentication
+print_status "Installing Hugging Face Hub..."
+python3 -m pip install huggingface_hub
+
 # Refresh PATH to make vllm command available immediately
 print_status "Refreshing environment to recognize vLLM command..."
 export PATH="$HOME/.local/bin:$PATH"
@@ -98,6 +102,20 @@ chmod +x start_qwen_agent.sh 2>/dev/null || true
 
 print_success "Setup complete!"
 
+# Hugging Face authentication prompt
+echo ""
+print_warning "🔐 HUGGING FACE AUTHENTICATION REQUIRED:"
+echo "To download models, you need to authenticate with Hugging Face."
+echo ""
+echo "📋 Steps to authenticate:"
+echo "1. Get your HF token from: https://huggingface.co/settings/tokens"
+echo "2. Run: huggingface-cli login"
+echo "3. Paste your token when prompted"
+echo ""
+echo "💡 Alternative: Set environment variable:"
+echo "   export HF_TOKEN='your_token_here'"
+echo ""
+
 # Important note for remote server installations
 print_warning "IMPORTANT for remote servers:"
 echo "If you get 'vllm: command not found' errors, run one of these:"
@@ -117,12 +135,13 @@ echo "✅ All utility dependencies"
 echo ""
 echo "📋 Next Steps:"
 echo "=============="
-echo "1. Configure your models in config.yaml"
-echo "2. Start vLLM models: ./start_vllm_secure.sh"
-echo "3. Start API server: ./run.sh api"
-echo "4. Start GUI: ./run.sh gui (optional)"
-echo "5. Test security: ./test_security.sh"
-echo "6. Run tests: ./run.sh test"
+echo "1. Authenticate with Hugging Face: huggingface-cli login"
+echo "2. Configure your models in config.yaml"
+echo "3. Start vLLM models: ./start_vllm_secure.sh"
+echo "4. Start API server: ./run.sh api"
+echo "5. Start GUI: ./run.sh gui (optional)"
+echo "6. Test security: ./test_security.sh"
+echo "7. Run tests: ./run.sh test"
 echo ""
 echo "📚 Documentation:"
 echo "================="

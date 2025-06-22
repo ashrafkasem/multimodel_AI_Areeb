@@ -21,6 +21,42 @@ fi
 
 echo "✅ vllm command found: $(which vllm)"
 
+# Check Hugging Face authentication
+echo "🔐 Checking Hugging Face authentication..."
+if ! python3 -c "from huggingface_hub import HfApi; HfApi().whoami()" >/dev/null 2>&1; then
+    echo "❌ Not authenticated with Hugging Face!"
+    echo "🔑 Model downloads will fail without authentication."
+    echo ""
+    echo "📋 To authenticate now:"
+    echo "1. 🌐 Visit: https://huggingface.co/settings/tokens"
+    echo "2. 🔑 Create/copy your token (needs 'Read' permissions)"
+    echo "3. 🔐 Run: huggingface-cli login"
+    echo ""
+    echo "❓ Do you want to authenticate now? (y/n)"
+    read -r auth_choice
+    
+    if [[ "$auth_choice" =~ ^[Yy]$ ]]; then
+        echo "🔐 Starting authentication..."
+        echo "📝 Paste your token when prompted:"
+        huggingface-cli login
+        
+        # Verify authentication worked
+        if python3 -c "from huggingface_hub import HfApi; HfApi().whoami()" >/dev/null 2>&1; then
+            echo "✅ Authentication successful!"
+        else
+            echo "❌ Authentication failed!"
+            echo "⚠️  Continuing anyway - some models may fail to download..."
+        fi
+    else
+        echo "⚠️  Skipping authentication - some models may fail to download..."
+        echo "💡 You can authenticate later with: huggingface-cli login"
+    fi
+    echo ""
+    sleep 2
+else
+    echo "✅ Hugging Face authentication verified"
+fi
+
 # Set HuggingFace cache directory
 export HF_HOME=/ephemeral/
 
