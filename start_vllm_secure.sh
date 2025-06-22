@@ -88,6 +88,8 @@ CUDA_VISIBLE_DEVICES=0 HF_HOME=/ephemeral/ nohup vllm serve areebtechnology2025/
   --host 127.0.0.1 \
   --port 8000 \
   --trust-remote-code \
+  --enable-reasoning \
+  --reasoning-parser deepseek_r1 \
   > orchestrator.log 2>&1 &
 
 echo "🔒 Orchestrator starting on GPU 0 (127.0.0.1:8000)... (check orchestrator.log)"
