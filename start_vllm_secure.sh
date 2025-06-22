@@ -5,6 +5,22 @@ echo "Starting vLLM models bound to localhost only for security"
 echo "🔐 SECURITY: Models accessible only from localhost (127.0.0.1)"
 echo
 
+# Ensure vllm command is available
+export PATH="$HOME/.local/bin:$PATH"
+hash -r  # Clear bash command cache
+
+# Check if vllm command is available
+if ! command -v vllm >/dev/null 2>&1; then
+    echo "❌ ERROR: vllm command not found!"
+    echo "💡 Solutions:"
+    echo "   1. Run: source ~/.bashrc"
+    echo "   2. Or restart your terminal session"
+    echo "   3. Or run: export PATH=\"\$HOME/.local/bin:\$PATH\""
+    exit 1
+fi
+
+echo "✅ vllm command found: $(which vllm)"
+
 # Set HuggingFace cache directory
 export HF_HOME=/ephemeral/
 

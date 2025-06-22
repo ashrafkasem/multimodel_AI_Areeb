@@ -76,6 +76,11 @@ python3 -m pip install fastapi uvicorn
 print_status "Installing vLLM for model serving..."
 python3 -m pip install vllm
 
+# Refresh PATH to make vllm command available immediately
+print_status "Refreshing environment to recognize vLLM command..."
+export PATH="$HOME/.local/bin:$PATH"
+hash -r  # Clear bash command cache
+
 # Install utility dependencies
 print_status "Installing utility dependencies..."
 python3 -m pip install httpx json5 pydantic requests pyyaml tabulate
@@ -92,6 +97,13 @@ chmod +x run.sh 2>/dev/null || true
 chmod +x start_qwen_agent.sh 2>/dev/null || true
 
 print_success "Setup complete!"
+
+# Important note for remote server installations
+print_warning "IMPORTANT for remote servers:"
+echo "If you get 'vllm: command not found' errors, run one of these:"
+echo "  • source ~/.bashrc"
+echo "  • export PATH=\"\$HOME/.local/bin:\$PATH\""
+echo "  • Or start a new terminal session"
 
 echo ""
 echo "🎉 Installation Summary:"
