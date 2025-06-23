@@ -728,6 +728,39 @@ async def completions(
         logger.error(f"Error in completion: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/v1/models")
+async def list_models():
+    """List available models - OpenAI compatible endpoint for IDEs."""
+    return {
+        "object": "list",
+        "data": [
+            {
+                "id": "qwen-agent",
+                "object": "model",
+                "created": int(time.time()),
+                "owned_by": "qwen-agent",
+                "root": "qwen-agent",
+                "parent": None,
+                "permission": [
+                    {
+                        "id": f"modelperm-{os.urandom(12).hex()}",
+                        "object": "model_permission", 
+                        "created": int(time.time()),
+                        "allow_create_engine": False,
+                        "allow_sampling": True,
+                        "allow_logprobs": True,
+                        "allow_search_indices": False,
+                        "allow_view": True,
+                        "allow_fine_tuning": False,
+                        "organization": "*",
+                        "group": None,
+                        "is_blocking": False
+                    }
+                ]
+            }
+        ]
+    }
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
